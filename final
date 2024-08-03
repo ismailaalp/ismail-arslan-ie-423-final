@@ -1,0 +1,137 @@
+!pip install pandas numpy matplotlib seaborn scikit-learn xgboost
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_auc_score, roc_curve
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+import xgboost as xgb
+
+
+# Load the dataset
+df = pd.read_csv('online_shoppers_intention.csv')
+
+# View the first few rows
+print(df.head())
+
+
+# Get an overview of the data types and non-null values
+print(df.info())
+
+# Get basic statistics of numerical features
+print(df.describe())
+
+
+# Check for missing values
+print(df.isnull().sum())
+
+# Plot histograms for numerical features
+df.hist(bins=20, figsize=(20,15))
+plt.show()
+
+
+# Plot countplot for the target variable 'Revenue'
+sns.countplot(x='Revenue', data=df)
+plt.show()
+
+
+# All categorical values should be converted to numerical values
+df_numeric = pd.get_dummies(df, drop_first=True)
+
+# Define correlation matrix
+corr_matrix = df_numeric.corr()
+
+# Visualize the matrix
+plt.figure(figsize=(14, 10))
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
+plt.title('Correlation Matrix')
+plt.show()
+
+label_encoder = LabelEncoder()
+df['VisitorType'] = label_encoder.fit_transform(df['VisitorType'])
+df['Weekend'] = label_encoder.fit_transform(df['Weekend'])
+df['Month'] = label_encoder.fit_transform(df['Month'])
+
+scaler = StandardScaler()
+df[['Administrative', 'Administrative_Duration', 'Informational', 'Informational_Duration', 'ProductRelated', 'ProductRelated_Duration', 'BounceRates', 'ExitRates', 'PageValues']] = scaler.fit_transform(df[['Administrative', 'Administrative_Duration', 'Informational', 'Informational_Duration', 'ProductRelated', 'ProductRelated_Duration', 'BounceRates', 'ExitRates', 'PageValues']])
+
+X = df.drop('Revenue', axis=1)
+y = df['Revenue']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+models = {
+    "Logistic Regression": LogisticRegression(),
+    "Decision Tree": DecisionTreeClassifier(),
+    "Random Forest": RandomForestClassifier(),
+    "SVM": SVC(probability=True),
+    "XGBoost": xgb.XGBClassifier()
+}
+
+for name, model in models.items():
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    print(f"{name} Accuracy: {accuracy_score(y_test, y_pred)}")
+    print(f"{name} ROC-AUC: {roc_auc_score(y_test, model.predict_proba(X_test)[:,1])}")
+    print(classification_report(y_test, y_pred))
+
+
+    param_grid = {
+    'n_estimators': [100, 200, 300],
+    'max_depth': [5, 10, 15],
+    'learning_rate': [0.01, 0.1, 0.2]
+}
+
+grid_search = GridSearchCV(xgb.XGBClassifier(), param_grid, scoring='roc_auc', cv=5)
+grid_search.fit(X_train, y_train)
+print(grid_search.best_params_)
+
+
+for name, model in models.items():
+    y_pred = model.predict(X_test)
+    print(f"{name} Model Performance")
+    print("Accuracy:", accuracy_score(y_test, y_pred))
+    print("ROC-AUC Score:", roc_auc_score(y_test, model.predict_proba(X_test)[:, 1]))
+    print("Classification Report:\n", classification_report(y_test, y_pred))
+    print("="*60)
+
+
+    for name, model in models.items():
+    y_pred = model.predict(X_test)
+    print(f"{name} Model Performance")
+    print("Accuracy:", accuracy_score(y_test, y_pred))
+    print("ROC-AUC Score:", roc_auc_score(y_test, model.predict_proba(X_test)[:, 1]))
+    print("Classification Report:\n", classification_report(y_test, y_pred))
+    print("="*60)
+
+    rf_model = models["Random Forest"]
+importances = rf_model.feature_importances_
+indices = np.argsort(importances)[::-1]
+
+# Print the feature ranking
+print("Feature ranking:")
+for i in range(X.shape[1]):
+    print(f"{i + 1}. Feature {X.columns[indices[i]]} ({importances[indices[i]]:.4f})")
+
+# Visualize the feature importance
+plt.figure(figsize=(12, 6))
+plt.title("Feature Importance - Random Forest")
+plt.bar(range(X.shape[1]), importances[indices], color="b", align="center")
+plt.xticks(range(X.shape[1]), [X.columns[i] for i in indices], rotation=90)
+plt.show()
+
+print("Insights and Conclusion:")
+print("1. Key factors contributing to purchase decisions include PageValues and ProductRelated_Duration.")
+print("2. Customers are more likely to purchase when they have high engagement with product pages.")
+print("3. To increase sales, it is recommended to optimize product pages and target returning visitors.")
+
+
+print("Limitations and Recommendations:")
+print("1. Data collection could be enhanced to include more granular information about customer behavior.")
+print("2. Future analysis could consider segmenting customers by demographics or other characteristics for more targeted insights.")
